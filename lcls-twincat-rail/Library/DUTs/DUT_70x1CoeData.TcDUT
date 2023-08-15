@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <DUT Name="DUT_70x1CoeData" Id="{b88de874-d5a2-427c-af71-ec1e9f7dbb73}">
+    <Declaration><![CDATA[TYPE DUT_70x1CoeData :
+STRUCT
+     (* Hardware *)
+    //Readbacks
+    {attribute 'pytmc' := '
+     pv: TRM:NAME
+     io: i
+     field: DESC beck terminal type
+    '}
+    sDeviceName : STRING(35);
+    {attribute 'pytmc' := '
+     pv: MAX:CUR
+     io: i
+     field: DESC Max Current
+    '}
+    nMaxCurrent : WORD;
+    {attribute 'pytmc' := '
+     pv: REDUC:CUR
+     io: i
+     field: DESC Reduced Current
+    '}
+    nReducedCurrent : WORD;
+    {attribute 'pytmc' := '
+     pv: NOM:VOL
+     io: i
+     field: DESC Nominal Voltage
+    '}
+    nNominalVoltage: WORD;
+    {attribute 'pytmc' := '
+     pv: MTR:STP
+     io: i
+     field: DESC Motor Fullsteps
+    '}
+    nMotorFullSteps: WORD;
+    {attribute 'pytmc' := '
+     pv: SPD:RNG
+     io: i
+     field: DESC Speed Range
+    '}
+    nSpeedRange: WORD;
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

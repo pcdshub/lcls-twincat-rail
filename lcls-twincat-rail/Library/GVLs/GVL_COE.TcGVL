@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <GVL Name="GVL_COE" Id="{f64bdbb9-b4ef-4a03-8ed6-912c59997cb8}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+    CONSTANT
+    EC_MAX_SECONDARY :  BYTE := 10;
+    MAX_STRING_SIZE : BYTE := 81;
+    NUM_70x1_COE_PARAM : BYTE := 6;
+    NUM_SUP_70x1 : BYTE := 4;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

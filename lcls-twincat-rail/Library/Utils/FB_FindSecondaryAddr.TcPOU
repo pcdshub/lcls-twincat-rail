@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <POU Name="FB_FindSecondaryAddr" Id="{ff9e1787-159d-4ef1-82e0-922731c9054f}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_FindSecondaryAddr
+VAR_INPUT
+    userNetId             : T_AmsNetId := ''; // Have to be entered
+    bExecute                : BOOL;
+END_VAR
+VAR_OUTPUT
+    userSlaveAddr         : ARRAY[0..GVL_COE.EC_MAX_SECONDARY] OF UINT;
+    nSecondaries           : UINT := 0;
+    bBusy              : BOOL := FALSE;
+END_VAR
+VAR
+    fbGetSecondary : FB_EcGetAllSlaveAddr;
+    eState   			: E_CoeState := E_CoeState.Init;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE eState OF
+E_CoeState.Init:
+    IF bExecute THEN
+        bBusy := TRUE;
+        eState := E_CoeState.Read;
+        bExecute := FALSE;
+    END_IF
+E_CoeState.Read:
+    fbGetSecondary(
+        sNetId:=userNetId,
+        pAddrBuf:=ADR(userSlaveAddr),
+        cbBufLen:=SIZEOF(userSlaveAddr),
+        bExecute := TRUE,
+    );
+    eState := E_CoeState.Idle;
+
+E_CoeState.Idle:
+    IF fbGetSecondary.bError THEN
+        eState := E_CoeState.Error;
+    ELSE
+        IF NOT fbGetSecondary.bBusy THEN
+            eState := E_CoeState.Init;
+            bBusy := FALSE;
+            nSecondaries := fbGetSecondary.nSlaves;
+        ELSE
+            fbGetSecondary(
+                sNetId:=userNetId,
+                pAddrBuf:=ADR(userSlaveAddr),
+                cbBufLen:=SIZEOF(userSlaveAddr),
+                bExecute := FALSE );
+        END_IF
+    END_IF
+E_CoeState.Error:
+;
+END_CASE]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

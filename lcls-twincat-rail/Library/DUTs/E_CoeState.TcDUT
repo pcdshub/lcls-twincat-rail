@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <DUT Name="E_CoeState" Id="{5b4a444c-2308-4cb0-a17b-e71fa7fc62a5}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+TYPE E_CoeState :
+(
+    Init := 0,
+    Read,
+    ReadPeriodically,
+    Error,
+    Idle,
+    PreRead,
+    Calculate
+);
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

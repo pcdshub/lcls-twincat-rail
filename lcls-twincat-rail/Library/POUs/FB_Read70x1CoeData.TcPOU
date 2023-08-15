@@ -1,0 +1,162 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <POU Name="FB_Read70x1CoeData" Id="{a73dd8e1-7fc7-47af-9595-ca49a9e715c1}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Read70x1CoeData
+VAR_INPUT
+   userNetId             : T_AmsNetId := ''; // Have to be entered
+END_VAR
+VAR_OUTPUT
+    {attribute 'pytmc' := '
+        pv: COE
+    '}
+    aCoeData : ARRAY[0..9] OF DUT_70x1CoeData;
+    userSlaveAddr         : POINTER TO UINT;
+END_VAR
+VAR_IN_OUT
+END_VAR
+VAR
+   fbCoeRead           : FB_EcCoESdoRead;  // Function Block for reading from CoE
+   fbGetSecondaries   : FB_FindSecondaryAddr;  // Function Block for reading Secondary Addresses
+
+   nNumCoeParam           : BYTE := GVL_COE.NUM_70x1_COE_PARAM;
+   bInit               : BOOL := TRUE;  // Kicks off Secondary Address read.
+   // NEED TO MANUALLY UPDATE GVL_COE SIZES
+   aCoeIndex           : ARRAY[0..GVL_COE.NUM_70x1_COE_PARAM - 1] OF BYTE := [0, 1, 2, 3, 6, 5];
+   aCoeAddr            : ARRAY[0..GVL_COE.NUM_70x1_COE_PARAM - 1] OF WORD :=   [16#1008, 16#8010, 16#8010, 16#8010, 16#8010, 16#8012];
+   aTerminalType       : ARRAY[0..GVL_COE.NUM_SUP_70x1] OF STRING := ['EL7031', 'EL7041', 'EL7041-1000', 'EL7047'];
+   {attribute 'pytmc' := '
+        pv: READ
+        io: io
+   '}
+   bStartRead             : BOOL := FALSE;    // Sign for start reading CoE
+   eState   			: E_CoeState := E_CoeState.Init;
+   nReadIndex           : BYTE :=  0;
+   nSecondaryIndex          : BYTE := 0;
+   nSecondaries              : UINT := 0;
+   pDstBuf              :   POINTER TO WORD;
+   cbBufLen   : UDINT;
+
+   bValidTerm : BOOL;
+   nForLoop : INT;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE eState OF
+E_CoeState.Init:
+   fbGetSecondaries(userNetId:=userNetId, bExecute:= bInit);
+   bInit := FALSE;
+//Needs Error Checking
+   IF NOT fbGetSecondaries.bBusy THEN
+        userSlaveAddr := ADR(fbGetSecondaries.userSlaveAddr);
+        nSecondaries := fbGetSecondaries.nSecondaries;
+        eState := E_CoeState.PreRead;// Next state for reading
+   END_IF
+E_CoeState.PreRead:
+   IF bStartRead THEN
+      eState := E_CoeState.Read;// Next state for reading
+      fbCoeRead(bExecute := FALSE);// Prepare CoE-Access: Read an object/ sub index
+      bStartRead := FALSE;
+   END_IF
+;
+
+E_CoeState.Read:
+
+     CASE nReadIndex OF
+       0:
+         pDstBuf := ADR(aCoeData[nSecondaryIndex].sDeviceName);
+       1:
+         pDstBuf := ADR(aCoeData[nSecondaryIndex].nMaxCurrent);
+       2:
+         pDstBuf := ADR(aCoeData[nSecondaryIndex].nReducedCurrent);
+       3:
+         pDstBuf := ADR(aCoeData[nSecondaryIndex].nNominalVoltage);
+       4:
+         pDstBuf := ADR(aCoeData[nSecondaryIndex].nMotorFullSteps);
+       5:
+         pDstBuf := ADR(aCoeData[nSecondaryIndex].nSpeedRange);
+
+     END_CASE
+    IF nReadIndex = 0 THEN
+    cbBufLen := GVL_COE.MAX_STRING_SIZE;
+    ELSE
+    cbBufLen := SIZEOF(pDstBuf^);
+    END_IF
+   // Read entry
+   fbCoeRead(
+   sNetId:= userNetId,
+   nSlaveAddr:= userSlaveAddr[nSecondaryIndex],
+   nSubIndex:= aCoeIndex[nReadIndex],
+   nIndex:= aCoeAddr[nReadIndex],
+   pDstBuf:= pDstBuf,
+   cbBufLen:= cbBufLen,
+   bExecute:= TRUE,
+   tTimeout:= T#1S
+   );
+   eState := E_CoeState.Idle; // Next state
+E_CoeState.Idle:
+   fbCoeRead();        // Execute CoE read until done
+   IF fbCoeRead.bError THEN
+      eState := E_CoeState.Error;     // Error case
+   ELSE
+      IF NOT fbCoeRead.bBusy THEN
+             eState := E_CoeState.PreRead;
+             IF nReadIndex = 0 THEN
+                // Make sure its an EL70x1
+                bValidTerm := FALSE;
+                FOR nForLoop := 0 TO GVL_COE.NUM_SUP_70x1 - 1 DO
+                    IF aCoeData[nSecondaryIndex].sDeviceName = aTerminalType[nForLoop] THEN
+                        bValidTerm := TRUE;
+                        EXIT;
+                    END_IF
+                END_FOR
+                IF bValidTerm THEN
+                    // Valid terminal, keep reading
+                    bStartRead := TRUE;
+                    nReadIndex := nReadIndex + 1;
+                ELSIF nSecondaryIndex < nSecondaries - 1 THEN
+                    // Invalid terminal, looks for next temrinal
+                    nSecondaryIndex := nSecondaryIndex + 1;
+                    nReadIndex := 0;
+                    //estate := E_CoeState.Init;
+                    estate := E_CoeState.PreRead;
+                    bStartRead := TRUE;
+                ELSE
+                    //Invalid terminal and none left.
+                    //Done reading, reset indices
+                    nReadIndex := 0;
+                    nSecondaryIndex := 0;
+                END_IF
+
+             ELSIF nReadIndex < nNumCoeParam - 1 THEN
+                bStartRead := TRUE;
+                nReadIndex := nReadIndex + 1;
+             ELSIF nReadIndex = nNumCoeParam - 1 AND nSecondaryIndex < nSecondaries - 1 THEN
+                nReadIndex := 0;
+                nSecondaryIndex := nSecondaryIndex + 1;
+                bStartRead := TRUE;
+             ELSE
+                //Done reading, reset indices
+                nReadIndex := 0;
+                nSecondaryIndex := 0;
+                ;
+             END_IF
+         END_IF
+   END_IF
+E_CoeState.Error:
+    IF fbCoeRead.nErrId = 13
+        //ERR_PORTNOTCONNECTED wasnt supported, non CoE Terminal.
+     OR fbCoeRead.nErrId = 1797
+        //ADSERR_DEVICE_INVALIDOFFSET, not an EL70x1
+     OR fbCoeRead.nErrId = 1795 THEN
+        //ADSERR_DEVICE_INVALIDSIZE, not an EL70x1
+        IF nSecondaryIndex < nSecondaries - 1 THEN
+            nSecondaryIndex := nSecondaryIndex + 1;
+            nReadIndex := 0;
+            estate := E_CoeState.PreRead;
+            bStartRead := TRUE;
+        END_IF
+    END_IF
+END_CASE]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>
